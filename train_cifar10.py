@@ -45,6 +45,7 @@ parser.add_argument('--bs', default='256')
 parser.add_argument('--size', default="32")
 parser.add_argument('--n_epochs', type=int, default='50')
 parser.add_argument('--patch', default='4', type=int)
+parser.add_argument('--dimhead', default="512", type=int)
 parser.add_argument('--convkernel', default='8', type=int)
 parser.add_argument('--cos', action='store_false', help='Train with cosine annealing scheduling')
 
@@ -121,13 +122,26 @@ elif args.net=='res101':
 elif args.net=="convmixer":
     # from paper, accuracy >96%. you can tune the depth and dim to scale accuracy and speed.
     net = ConvMixer(256, 16, kernel_size=args.convkernel, patch_size=1, n_classes=10)
+elif args.net=="vit_small":
+    from models.vit_small import ViT
+    net = ViT(
+    image_size = size,
+    patch_size = args.patch,
+    num_classes = 10,
+    dim = int(args.dimhead),
+    depth = 6,
+    heads = 8,
+    mlp_dim = 512,
+    dropout = 0.1,
+    emb_dropout = 0.1
+)
 elif args.net=="vit":
     # ViT for cifar10
     net = ViT(
-    image_size = 32,
+    image_size = size,
     patch_size = args.patch,
     num_classes = 10,
-    dim = 512,
+    dim = int(args.dimhead),
     depth = 6,
     heads = 8,
     mlp_dim = 512,
@@ -140,6 +154,41 @@ elif args.net=="vit_timm":
 #    net = timm.create_model("vit_base_patch16_224", pretrained=True)
     net = timm.create_model("vit_small_patch16_224", pretrained=True)
     net.head = nn.Linear(net.head.in_features, 10)
+elif args.net=="cait":
+    from models.cait import CaiT
+    net = CaiT(
+    image_size = size,
+    patch_size = args.patch,
+    num_classes = 10,
+    dim = int(args.dimhead),
+    depth = 6,   # depth of transformer for patch to patch attention only
+    cls_depth=2, # depth of cross attention of CLS tokens to patch
+    heads = 8,
+    mlp_dim = 512,
+    dropout = 0.1,
+    emb_dropout = 0.1,
+    layer_dropout = 0.05
+)
+elif args.net=="cait_small":
+    from models.cait import CaiT
+    net = CaiT(
+    image_size = size,
+    patch_size = args.patch,
+    num_classes = 10,
+    dim = int(args.dimhead),
+    depth = 6,   # depth of transformer for patch to patch attention only
+    cls_depth=2, # depth of cross attention of CLS tokens to patch
+    heads = 6,
+    mlp_dim = 256,
+    dropout = 0.1,
+    emb_dropout = 0.1,
+    layer_dropout = 0.05
+)
+elif args.net=="swin":
+    from models.swin import swin_t
+    net = swin_t(window_size=args.patch,
+                num_classes=10,
+                downscaling_factors=(2,2,2,1))
 
 #    for param in net.parameters():
 #        param.requires_grad = False
