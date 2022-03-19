@@ -30,6 +30,8 @@ from utils import progress_bar
 from models.convmixer import ConvMixer
 from randomaug import RandAugment
 
+from warmup_scheduler import GradualWarmupScheduler
+
 # parsers
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=1e-3, type=float, help='learning rate') # resnets.. 1e-3, Vit..1e-4?
@@ -54,7 +56,7 @@ watermark = "{}_lr{}".format(args.net, args.lr)
 if args.amp:
     watermark += "_useamp"
 
-wandb.init(project="cifar10-challange",
+run = wandb.init(project="cifar10-challange",
            name=watermark)
 wandb.config.update(args)
 
@@ -72,7 +74,8 @@ start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 # Data
 print('==> Preparing data..')
 if args.net=="vit_timm":
-    size = 384
+#    size = 384
+    size = 224
 else:
     size = imsize
 transform_train = transforms.Compose([
@@ -95,10 +98,10 @@ if args.aug:
     transform_train.transforms.insert(0, RandAugment(N, M))
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=bs, shuffle=True, num_workers=8)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=bs, shuffle=True)#, num_workers=8)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
-testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=8)
+testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False)#, num_workers=8)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
@@ -133,8 +136,15 @@ elif args.net=="vit":
 )
 elif args.net=="vit_timm":
     import timm
-    net = timm.create_model("vit_large_patch16_384", pretrained=True)
+#    net = timm.create_model("vit_large_patch16_384", pretrained=True)
+#    net = timm.create_model("vit_base_patch16_224", pretrained=True)
+    net = timm.create_model("vit_small_patch16_224", pretrained=True)
     net.head = nn.Linear(net.head.in_features, 10)
+
+#    for param in net.parameters():
+#        param.requires_grad = False
+#    for param in net.head.parameters():
+#        param.requires_grad = True
 
 net = net.to(device)
 if device == 'cuda':
@@ -164,6 +174,8 @@ if not args.cos:
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, verbose=True, min_lr=1e-3*1e-5, factor=0.1)
 else:
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.n_epochs)
+
+scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=10, after_scheduler=scheduler)
 
 if args.cos:
     wandb.config.scheduler = "cosine"
@@ -232,7 +244,7 @@ def test(epoch):
               "scaler": scaler.state_dict()}
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/'+args.net+'-{}-ckpt.t7'.format(args.patch))
+        torch.save(state, './checkpoint/'+args.net+'-{}-ckpt-{}.t7'.format(args.patch, run.id))
         best_acc = acc
     
     os.makedirs("log", exist_ok=True)
