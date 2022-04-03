@@ -1,3 +1,8 @@
+"""Plot attention matrices by samples for each class
+Compare noisy and non-noisy images
+"""
+
+
 import os
 import timm
 
