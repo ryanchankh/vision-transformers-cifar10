@@ -65,9 +65,9 @@ def summarize_attn(method, attn_mat):
     elif method == 'sum_sum':
         return attn_mat.sum(dim=-2).sum(dim=-1)
     elif method == 'entropy_sum':
-        return entropy(attn_mat, dim=-2).sum(dim=-1)
+        return entropy(attn_mat, dim=-1).sum(dim=-1)
     elif method == 'entropy_mean':
-        return entropy(attn_mat, dim=-2).mean(dim=-1)
+        return entropy(attn_mat, dim=-1).mean(dim=-1)
     else:
         raise ValueError(f'method not found: {method}')
 
