@@ -59,7 +59,7 @@ def get_layer_outputs(name, layer_outputs):
 def entropy(p, dim=-1, eps=1e-5):
     return - ((p + eps) * torch.log((p + eps))).sum(dim)
 
-def summarize_attn(method, attn_mat):
+def summarize_attn(method, attn_mat, concat=False):
     if method == 'mean_sum':
         return attn_mat.mean(dim=-2).sum(dim=-1)
     elif method == 'sum_sum':
@@ -68,10 +68,15 @@ def summarize_attn(method, attn_mat):
         return entropy(attn_mat, dim=-1).sum(dim=-1)
     elif method == 'entropy_mean':
         return entropy(attn_mat, dim=-1).mean(dim=-1)
+    elif method == 'q-score':
+        h = attn_mat.sum(dim=-2)
+        if concat:
+            h = h.reshape(h.shape[0], -1)
+        return (h.amax(dim=-1) - torch.mean(h, dim=-1)) / torch.std(h, dim=-1) 
     else:
         raise ValueError(f'method not found: {method}')
 
-def plot_distributions(dist1, dist2, save_dir):
+def plot_distributions_perhead(dist1, dist2, save_dir):
     os.makedirs(save_dir, exist_ok=True)
     n_samples, n_heads = dist1.shape
     fig, ax = plt.subplots(ncols=n_heads, figsize=(16, 4))
@@ -80,16 +85,23 @@ def plot_distributions(dist1, dist2, save_dir):
         ax[h].hist(dist2[:, h], bins=20, color='red', alpha=0.5, label='svhn')
         ax[h].set_title(f'head: {h}')
     ax[-1].legend()
-    fig.savefig(os.path.join(save_dir, 'cifar10_svhn.pdf'))
+    fig.savefig(os.path.join(save_dir, 'cifar10_svhn_perhead.pdf'))
 
+def plot_distributions_concat(dist1, dist2, save_dir):
+    os.makedirs(save_dir, exist_ok=True)
+    fig, ax = plt.subplots()
+    ax.hist(dist1, bins=20, color='blue', alpha=0.5, label='cifar10')
+    ax.hist(dist2, bins=20, color='red', alpha=0.5, label='svhn')
+    ax.legend()
+    fig.savefig(os.path.join(save_dir, 'cifar10_svhn_concat.pdf'))
 def main():
     ## hyperparameters
     model_name = "vit_small_patch16_224"
     img_size = 224
     batch_size = 128
-    n_samples = 5000
+    n_samples = 500
     block = 11
-    method = 'entropy_sum'
+    method = 'q-score'
 
     ## device
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -160,10 +172,13 @@ def main():
 
     dist_attn_mats1 = summarize_attn(method, attn_mats1[:, block, :, :, :]).numpy()
     dist_attn_mats2 = summarize_attn(method, attn_mats2[:, block, :, :, :]).numpy()
+    dist_attn_mats1_concat = summarize_attn(method, attn_mats1[:, block, :, :, :], concat=True).numpy()
+    dist_attn_mats2_concat = summarize_attn(method, attn_mats2[:, block, :, :, :], concat=True).numpy()
     # print(dist_attn_mats1)
     # print(dist_attn_mats2)
     save_dir = f'./figures/{model_name}/distribution_hist/'
-    plot_distributions(dist_attn_mats1, dist_attn_mats2, save_dir)
+    plot_distributions_perhead(dist_attn_mats1, dist_attn_mats2, save_dir)
+    plot_distributions_concat(dist_attn_mats1_concat, dist_attn_mats2_concat, save_dir)
 
 if __name__ == '__main__':
     main()
