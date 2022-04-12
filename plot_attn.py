@@ -135,14 +135,68 @@ def plot_attn_heatmap_per_sample(model_name, n_samples, attn_mat, save_dir, n_cl
                 ax[b, h].set_title(f'block {b}, head {h}')
         fig.savefig(os.path.join(save_dir, f'class{y[i]}_sample{i}_histogram_thres0.005.pdf'))
         plt.close()
+        
+
+def plot_attn_heatmap_l2col_summary(model_name, n_samples, attn_mat, save_dir, n_classes, y):
+    os.makedirs(save_dir, exist_ok=True)
+    fig, ax = plt.subplots(nrows=MODEL_NUM_BLOCKS[model_name], ncols=MODEL_NUM_HEADS[model_name], figsize=(30, 50))
+    for b in range(MODEL_NUM_BLOCKS[model_name]):
+        for h in range(MODEL_NUM_HEADS[model_name]):
+            A = attn_mat[:, b, h].numpy()
+            l2_sum = np.linalg.norm(A, ord=2, axis=1).sum(axis=1)
+            ax[b, h].hist(l2_sum)
+            ax[b, h].set_title(f'block {b}, head {h}')
+    fig.savefig(os.path.join(save_dir, f'l2colsummary_perhead.pdf'))
+    plt.close()
+    
+    fig, ax = plt.subplots(nrows=MODEL_NUM_BLOCKS[model_name], ncols=1, figsize=(30, 50))
+    for b in range(MODEL_NUM_BLOCKS[model_name]):
+        A = attn_mat[:, b, :, :].numpy()
+        l2_sum = np.linalg.norm(A, ord=2, axis=-1).sum(axis=-1).mean(axis=-1)
+        ax[b].hist(l2_sum)
+        ax[b].set_title(f'block {b}, avg over heads')
+    fig.savefig(os.path.join(save_dir, f'l2colsummary_avghead.pdf'))
+    plt.close()
+    
+def plot_attn_heatmap_linfrow_summary(model_name, n_samples, attn_mat, save_dir, n_classes, y):
+    os.makedirs(save_dir, exist_ok=True)
+    fig, ax = plt.subplots(nrows=MODEL_NUM_BLOCKS[model_name], ncols=MODEL_NUM_HEADS[model_name], figsize=(30, 50))
+    for b in range(MODEL_NUM_BLOCKS[model_name]):
+        for h in range(MODEL_NUM_HEADS[model_name]):
+            A = attn_mat[:, b, h].numpy()
+            l1_sum = np.linalg.norm(A, ord=float("inf"), axis=-2).sum(axis=-1)
+            ax[b, h].hist(l1_sum)
+            ax[b, h].set_title(f'block {b}, head {h}')
+    fig.savefig(os.path.join(save_dir, f'linfrowsummary_perhead.pdf'))
+    plt.close()
+    
+    fig, ax = plt.subplots(nrows=MODEL_NUM_BLOCKS[model_name], ncols=1, figsize=(30, 50))
+    for b in range(MODEL_NUM_BLOCKS[model_name]):
+        A = attn_mat[:, b, :, :].numpy()
+        l1_sum = np.linalg.norm(A, ord=float("inf"), axis=-2).sum(axis=-1).mean(axis=-1)
+        ax[b].hist(l1_sum)
+        ax[b].set_title(f'block {b}, avg over heads')
+    fig.savefig(os.path.join(save_dir, f'linfrowsummary_avghead.pdf'))
+    plt.close()
+    
+def plot_attn_heatmap_linfrow_summary_perclass(model_name, n_samples, attn_mat, save_dir, n_classes, y):
+    for _y in torch.unique(y):
+        fig, ax = plt.subplots(nrows=MODEL_NUM_BLOCKS[model_name], ncols=1, figsize=(30, 50))
+        for b in range(MODEL_NUM_BLOCKS[model_name]):
+            A = attn_mat[y==_y, b, :, :].numpy()
+            l1_sum = np.linalg.norm(A, ord=float("inf"), axis=-2).sum(axis=-1).mean(axis=-1)
+            ax[b].hist(l1_sum)
+            ax[b].set_title(f'block {b}, avg over heads')
+        fig.savefig(os.path.join(save_dir, f'linfrowsummary_avghead_class{_y}.pdf'))
+        plt.close()
 
 def main():
     ## hyperparameters
     model_name = "vit_small_patch16_224"
     img_size = 224
     noise_scale = 0.1
-    n_samples = 10
-    data = 'svhn'
+    n_samples = 200
+    data = 'cifar10'
 
     ## Data
     if data == 'cifar10':
@@ -216,7 +270,11 @@ def main():
     heads = np.arange(MODEL_NUM_HEADS[model_name])
     # save_dir = f'./figures/{data}/{model_name}/attn_mat_per_noise_noise{noise_scale}'
     # plot_attn_clean_vs_noise(blocks, heads, n_samples, attn_clean, attn_noise, save_dir, num_classes, y)
-    save_dir = f'./figures/{data}/{model_name}/attn_heatmap_per_sample/'
-    plot_attn_heatmap_per_sample(model_name, n_samples, attn_clean, save_dir, num_classes, y)
+#     save_dir = f'./figures/{data}/{model_name}/attn_heatmap_per_sample/'
+#     plot_attn_heatmap_per_sample(model_name, n_samples, attn_clean, save_dir, num_classes, y)
+    save_dir = f'./figures/{data}/{model_name}/attn_heatmap_summary/'
+    plot_attn_heatmap_l2col_summary(model_name, n_samples, attn_clean, save_dir, num_classes, y)
+    plot_attn_heatmap_linfrow_summary(model_name, n_samples, attn_clean, save_dir, num_classes, y)
+    plot_attn_heatmap_linfrow_summary_perclass(model_name, n_samples, attn_clean, save_dir, num_classes, y)
 if __name__ == '__main__':
     main()
